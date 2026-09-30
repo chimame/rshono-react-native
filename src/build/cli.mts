@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -13,7 +12,6 @@ if (process.argv[2] !== "build" || process.argv.length > 3) {
   process.exit(1);
 }
 const cwd = process.cwd();
-process.env.RSHONO_NATIVE_BUILD_ID = randomUUID();
 const configFile = ["rshono.config.ts", "rshono.config.js", "rshono.config.mjs"]
   .map((name) => resolve(cwd, name))
   .find(existsSync);
@@ -36,7 +34,7 @@ await mkdir(dirname(output), { recursive: true });
 await copyFile(resolve(cwd, "dist/static/native-client.cjs"), output);
 await writeFile(
   output.replace(/\.cjs$/, ".d.cts"),
-  `import type { NativeManifest } from 'rshono-react-native'\nexport const buildId: NativeManifest['buildId']\nexport const createFromReadableStream: NativeManifest['createFromReadableStream']\n`,
+  `import type { NativeManifest } from 'rshono-react-native'\nexport const createFromReadableStream: NativeManifest['createFromReadableStream']\n`,
 );
 if (nativeRoot) {
   await writeFile(

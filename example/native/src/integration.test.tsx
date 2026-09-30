@@ -13,7 +13,6 @@ import {
 } from "rshono-react-native";
 jest.mock("rshono-react-native/internal/manifest", () => require("../.rshono-native/client.cjs"));
 
-const { buildId } = manifest;
 function loadPayload(serverUrl: string, name: string, signal: AbortSignal, fetch: FlightFetch) {
   const url = new URL("/native", serverUrl);
   url.searchParams.set("name", name);
@@ -30,7 +29,6 @@ function response(text = '0:{"root":"Connected"}\n'): FlightResponse {
       get: (name) =>
         ({
           "content-type": "text/x-component;charset=utf-8",
-          "x-rshono-native-build": buildId,
         })[name] ?? null,
     },
     body: new ReadableStream({
@@ -61,15 +59,6 @@ test("sends the RSC header and encoded name and decodes with the real decoder", 
 test.each([
   ["HTTP error", { ok: false, status: 503 }, "HTTP 503"],
   ["HTML response", { headers: { get: () => "text/html" } }, "not an RSC payload"],
-  [
-    "different build",
-    {
-      headers: {
-        get: (name: string) => (name === "content-type" ? "text/x-component" : "old-build"),
-      },
-    },
-    "builds do not match",
-  ],
   ["missing body", { body: null }, "body is missing"],
 ])("rejects %s before rendering", async (_, overrides, message) => {
   await expect(
@@ -143,5 +132,44 @@ integration(
     expect(await screen.findByText("Hello, Updated name")).toBeTruthy();
     expect(screen.getByText("Local counter: 0")).toBeTruthy();
     expect(screen.getByText(/^Request ID:/).props.children).not.toEqual(firstId);
+  },
+);
+
+integration.each([
+  [undefined, "Current experience"],
+  ["store-1", "Current experience"],
+  ["review-2", "Preview experience"],
+  ["unknown", "Current experience"],
+])("renders server-selected content for release %s", async (release, expected) => {
+  await renderAsync(
+    <RshonoProvider
+      origin={process.env.RSHONO_POC_URL!}
+      fetch={httpFetch}
+      headers={release ? { "x-app-release": release } : undefined}
+    >
+      <ServerScreen path="/native" />
+    </RshonoProvider>,
+  );
+  expect(await screen.findByText(expected)).toBeTruthy();
+  expect(screen.getByText(process.env.RSHONO_EXPECTED_TITLE ?? "Screen from RSHono")).toBeTruthy();
+  fireEvent.press(screen.getByLabelText("Increment local counter"));
+  expect(screen.getByText("Local counter: 1")).toBeTruthy();
+});
+
+const newComponentIntegration =
+  process.env.RSHONO_POC_URL && process.env.RSHONO_NEW_COMPONENT ? test : test.skip;
+newComponentIntegration(
+  "renders a newly added component only for its target app release",
+  async () => {
+    await renderAsync(
+      <RshonoProvider
+        origin={process.env.RSHONO_POC_URL!}
+        fetch={httpFetch}
+        headers={{ "x-app-release": "review-3" }}
+      >
+        <ServerScreen path="/native" />
+      </RshonoProvider>,
+    );
+    expect(await screen.findByText("New review component")).toBeTruthy();
   },
 );

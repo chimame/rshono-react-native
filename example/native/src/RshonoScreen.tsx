@@ -80,6 +80,7 @@ export default function RshonoScreen() {
       </Pressable>
       <RshonoProvider
         origin={request.origin}
+        headers={{ "x-app-release": "store-1" }}
         fetch={fetch}
         fallback={<ActivityIndicator />}
         renderError={(error, retry) => (

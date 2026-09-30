@@ -28,4 +28,6 @@ After publishing, install the actual registry version into a new project and ver
 
 ## Server and native deployments
 
-The generated client and server must have matching build IDs. Rebuilding or replacing only the server causes older native apps to receive BUILD_MISMATCH errors. Consumer applications are responsible for retaining endpoints for older clients. This alpha does not manage deployments for multiple app versions.
+The server controls version-specific responses. Send optional app release headers and retain compatible Client Component references and props for each supported app release. Test current and review releases against the deployment before rollout. If reference maps or the Flight protocol differ, route each app release to its compatible server deployment. The library does not reject responses based on build IDs. See the README's version skew section.
+
+Apps built with the previous adapter still enforce its build-match check. Keep their compatible server deployment available until they migrate to this adapter version; changing only the server cannot remove checks embedded in an installed app.

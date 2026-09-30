@@ -12,7 +12,6 @@ const response = () => ({
   body: new ReadableStream(),
 });
 const manifest = {
-  buildId: "current",
   createFromReadableStream: async () => ({ root: "ok" }),
 };
 test("exposes HTTP status and network/decode causes without relying on messages", async () => {
@@ -54,17 +53,7 @@ test("exposes HTTP status and network/decode causes without relying on messages"
     });
   }
 });
-test("distinguishes build mismatches and invalid responses while preserving AbortError", async () => {
-  const fetcher = async () => ({
-    ...response(),
-    headers: {
-      get: (name) => (name === "content-type" ? "text/x-component" : "old"),
-    },
-  });
-  await assert.rejects(
-    createNativeClient({ manifest, fetch: fetcher }).load("https://example.test"),
-    { code: "BUILD_MISMATCH" },
-  );
+test("distinguishes invalid responses while preserving AbortError", async () => {
   await assert.rejects(
     createNativeClient({
       manifest,
@@ -84,12 +73,4 @@ test("distinguishes build mismatches and invalid responses while preserving Abor
     name: "AbortError",
   });
   await assert.rejects(client.load("not a url"), { code: "INVALID_URL" });
-  assert.throws(
-    () =>
-      createNativeClient({
-        manifest: { ...manifest, buildId: "" },
-        fetch: fetcher,
-      }),
-    { code: "CONFIGURATION_ERROR" },
-  );
 });

@@ -5,7 +5,6 @@ export type RshonoErrorCode =
   | "NETWORK_ERROR"
   | "HTTP_ERROR"
   | "INVALID_RESPONSE"
-  | "BUILD_MISMATCH"
   | "DECODE_ERROR"
   | "TIMEOUT";
 export class RshonoError extends Error {

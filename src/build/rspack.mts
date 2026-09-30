@@ -8,14 +8,12 @@ import bridge from "./transform.cjs";
 export function createRspackHook(
   options: NativeBuildOptions,
   config: RshonoConfig,
-  buildId: string | undefined,
 ): NonNullable<RshonoConfig["rspack"]> {
   return (input, context) => {
     const require = createRequire(resolve(process.cwd(), "package.json"));
     const { rspack } = require("@rspack/core");
     const normalized = resolveNativeOptions(options);
     const { output, clientRoots } = normalized;
-    if (!buildId) throw new Error("Build with rshono-native build.");
     if (context.isDev) throw new Error("Only production builds are currently supported.");
     const result = config.rspack?.(input, context) ?? input;
     result.plugins ??= [];
@@ -33,45 +31,7 @@ export function createRspackHook(
         },
       ],
     });
-    result.plugins.push(
-      new rspack.DefinePlugin({
-        __RSHONO_NATIVE_BUILD_ID__: JSON.stringify(buildId),
-      }),
-    );
-    if (context.isServer) {
-      {
-        const aliases = result.resolve?.alias;
-        const original =
-          aliases && !Array.isArray(aliases) ? aliases["@rshono/server-app$"] : undefined;
-        if (typeof original !== "string")
-          throw new Error("Unsupported RSHono configuration: missing server-app alias.");
-        result.resolve ??= {};
-        result.resolve.alias = {
-          ...aliases,
-          "@rshono-native/original-server-app": original,
-          "@rshono/server-app$": fileURLToPath(new URL("./server-app.mjs", import.meta.url)),
-        };
-      }
-      // Bundle the server helper to embed the build ID.
-      const externals = result.externals
-        ? Array.isArray(result.externals)
-          ? result.externals
-          : [result.externals]
-        : [];
-      result.externals = externals.map((external) =>
-        typeof external === "function"
-          ? (data, callback) => {
-              if (
-                data.request?.startsWith("rshono-react-native/") ||
-                data.request?.startsWith("@rshono-native/")
-              )
-                return callback();
-              return external(data, callback);
-            }
-          : external,
-      );
-      return result;
-    }
+    if (context.isServer) return result;
     result.target = "node";
     result.entry = {
       main: fileURLToPath(new URL("./flight-entry.mjs", import.meta.url)),

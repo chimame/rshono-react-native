@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 export type FlightPayload = { root: ReactNode };
 export type NativeManifest = {
-  buildId: string;
   createFromReadableStream(stream: ReadableStream<Uint8Array>): PromiseLike<FlightPayload>;
 };
 export type FlightResponse = {
@@ -42,8 +41,6 @@ export function createNativeClient({
   manifest: NativeManifest;
   fetch: FlightFetch;
 }): NativeClient {
-  if (!manifest.buildId)
-    throw new RshonoError("CONFIGURATION_ERROR", "The native client is missing a buildId.");
   return {
     async load(address, { signal = new AbortController().signal, headers = {} } = {}) {
       const url = httpUrl(address);
@@ -74,12 +71,6 @@ export function createNativeClient({
         "text/x-component"
       ) {
         throw new RshonoError("INVALID_RESPONSE", "The response is not an RSC payload.");
-      }
-      if (response.headers.get("x-rshono-native-build") !== manifest.buildId) {
-        throw new RshonoError(
-          "BUILD_MISMATCH",
-          "Server and native builds do not match. Deploy matching builds.",
-        );
       }
       if (!response.body)
         throw new RshonoError("INVALID_RESPONSE", "The RSC payload body is missing.");

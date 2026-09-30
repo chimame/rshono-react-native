@@ -53,7 +53,7 @@ import assert from "node:assert/strict";
 import { createNativeClient, RshonoProvider, ServerScreen, RshonoError, type NativeManifest } from "rshono-react-native";
 import * as build from "rshono-react-native/build";
 import { withRshono } from "rshono-react-native/metro";
-const manifest: NativeManifest = {buildId:"test",createFromReadableStream:async()=>({root:"ok"})};
+const manifest: NativeManifest = {createFromReadableStream:async()=>({root:"ok"})};
 assert.equal(typeof createNativeClient({manifest, fetch:async()=>{throw new Error("unused")}}).load,"function");
 assert.equal(typeof RshonoProvider,"function");
 assert.equal(typeof ServerScreen,"function");

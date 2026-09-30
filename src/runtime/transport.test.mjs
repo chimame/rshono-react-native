@@ -4,7 +4,6 @@ import { test } from "vitest";
 const assert = require("node:assert/strict");
 const { createNativeClient } = require("../../dist");
 const manifest = {
-  buildId: "current",
   createFromReadableStream: async () => ({ root: "ok" }),
 };
 function response(overrides = {}) {
@@ -34,14 +33,27 @@ test("preserves the path, query, and authentication headers while forcing RSC", 
   const signal = new AbortController().signal;
   assert.deepEqual(
     await client.load("https://example.test/profile?id=42", {
-      headers: { Authorization: "Bearer example", rsc: "0" },
+      headers: {
+        Authorization: "Bearer example",
+        "x-app-version": "2.0.0",
+        "x-app-release": "review-2",
+        rsc: "0",
+      },
       signal,
     }),
     { root: "ok" },
   );
   assert.deepEqual(received, [
     "https://example.test/profile?id=42",
-    { headers: { Authorization: "Bearer example", RSC: "1" }, signal },
+    {
+      headers: {
+        Authorization: "Bearer example",
+        "x-app-version": "2.0.0",
+        "x-app-release": "review-2",
+        RSC: "1",
+      },
+      signal,
+    },
   ]);
 });
 test("does not fetch invalid URLs or already aborted requests", async () => {
@@ -60,15 +72,6 @@ for (const [name, overrides, error] of [
   ["HTTP error", { ok: false, status: 503 }, /503/],
   ["HTML", { headers: { get: () => "text/html" } }, /RSC payload/],
   ["invalid MIME type", { headers: { get: () => "text/x-component-invalid" } }, /RSC payload/],
-  [
-    "different build",
-    {
-      headers: {
-        get: (name) => (name === "content-type" ? "text/x-component" : "old"),
-      },
-    },
-    /build/,
-  ],
   ["missing body", { body: null }, /body/],
 ])
   test(name + " is rejected before decoding", async () => {
@@ -117,3 +120,18 @@ test("supports fetching and cancellation with a basic React Native AbortSignal",
     name: "AbortError",
   });
 });
+
+for (const serverBuild of [null, "a-new-server-build"]) {
+  test(`accepts server content without build agreement (${serverBuild})`, async () => {
+    const client = createNativeClient({
+      manifest,
+      fetch: async () =>
+        response({
+          headers: {
+            get: (name) => (name === "content-type" ? "text/x-component" : serverBuild),
+          },
+        }),
+    });
+    assert.deepEqual(await client.load("https://example.test"), { root: "ok" });
+  });
+}

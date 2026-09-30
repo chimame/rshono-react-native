@@ -10,7 +10,7 @@ export function defineNativeConfig(
 ): RshonoConfig {
   const result: RshonoConfig = {
     ...config,
-    rspack: createRspackHook(options, config, process.env.RSHONO_NATIVE_BUILD_ID),
+    rspack: createRspackHook(options, config),
   };
   Object.defineProperty(result, nativeOptionsKey, { value: options });
   return result;

@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { dirname, join } from "node:path";
 import { root, pnpm } from "./commands.mts";
 
-export async function integration() {
+export async function integration(projectRoot = root, env: NodeJS.ProcessEnv = process.env) {
   const reservation = createServer();
   reservation.listen(0, "127.0.0.1");
   await once(reservation, "listening");
@@ -16,7 +16,7 @@ export async function integration() {
   await new Promise<void>((resolve, reject) =>
     reservation.close((error) => (error ? reject(error) : resolve())),
   );
-  const cwd = join(root, "example/server");
+  const cwd = join(projectRoot, "example/server");
   const require = createRequire(join(cwd, "package.json"));
   const cli = join(dirname(require.resolve("@rshono/core/package.json")), "bin/rshono.mjs");
   const child = spawn(process.execPath, [cli, "start", "--port", String(port)], {
@@ -57,8 +57,8 @@ export async function integration() {
       await delay(100);
     }
     if (!ready) throw new Error(`Timed out waiting for RSHono to start.\n${logs}`);
-    pnpm(["--filter", "rshono-native-example", "test", "--watchman=false"], {
-      ...process.env,
+    pnpm(["--dir", join(projectRoot, "example/native"), "test", "--watchman=false"], {
+      ...env,
       RSHONO_POC_URL: origin,
     });
   } finally {

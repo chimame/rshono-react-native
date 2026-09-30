@@ -4,7 +4,7 @@
 
 An unofficial, experimental adapter that renders RSHono React Server Components as React Native UI. It requires no source changes to RSHono or the Flight decoder.
 
-**0.1.0-alpha.0 / Not yet published to npm.** This alpha targets a fixed set of compatible versions. Server Functions, HMR, and serving multiple native app versions simultaneously are not supported. You can use it within ordinary Expo Router screens; integration with Expo Router's own RSC implementation is outside the scope of this project.
+**0.1.0-alpha.0 / Not yet published to npm.** This alpha targets a fixed set of compatible versions. Server Functions and HMR are not supported. Applications control version-specific RSC responses on the server. You can use it within ordinary Expo Router screens; integration with Expo Router's own RSC implementation is outside the scope of this project.
 
 ## Run the example
 
@@ -131,13 +131,47 @@ If you already have a Metro configuration, wrap the final configuration with `wi
 
 `renderError(error, retry)` receives fetch and rendering errors. Without it, errors propagate to a parent Error Boundary. The default fallback is null. The default timeout is 15 seconds and covers fetching the root payload; it does not include subsequent Suspense waits.
 
+## Server-controlled rendering and version skew
+
+The server decides what to render for each request. The library does not generate or compare build IDs, enforce app versions, or require an app update for server-only wording and data changes. A screen receives updated content on its next request; updates are not pushed to an already displayed screen.
+
+Use the existing optional `headers` prop to identify an app release. Header names and values belong to your application; the library only reserves `RSC`.
+
+```tsx
+<RshonoProvider
+  origin="https://example.com"
+  fetch={fetch}
+  headers={{ "x-app-version": "2.0.0", "x-app-release": "review-2" }}
+>
+  <ServerScreen path="/native" />
+</RshonoProvider>
+```
+
+Read the headers through RSHono's standard request context and choose the response on the server:
+
+```tsx
+import type { PageProps } from "@rshono/core";
+import { Label } from "../../native/src/components/native-host";
+
+export default function Page({ ctx }: PageProps) {
+  const release = ctx.req.header("x-app-release");
+  return <Label>{release === "review-2" ? "Preview experience" : "Current experience"}</Label>;
+}
+```
+
+This lets the current store release and a release under review request the same URL and receive different content. Missing or unknown release IDs follow the application's fallback branch. No app identifier is sent automatically. These headers select presentation; they are not authentication credentials.
+
+Client Components and their dependencies still execute from the installed app. Keep existing component references and prop contracts compatible for older releases, and send new components only to releases that contain them. Removing the build check does not install missing native code or guarantee compatibility across React/Flight upgrades, component moves, or changed module IDs. When separate builds have incompatible reference maps, route requests to the appropriate retained server deployment using the same release header. Routing and retention policies belong to the application.
+
+For cached responses, include the release headers in the cache key (and appropriate `Vary` headers), or disable caching. The example uses `Cache-Control: private, no-store` for `/native`. `pnpm verify` also retains a generated native decoder, rebuilds the server with changed wording, and verifies native rendering for current, review, missing, and unknown release IDs over real HTTP. It also adds a new Client Component, verifies existing releases with the old decoder, and renders the new component with the new decoder for its target release.
+
 ## Error contract
 
 ```tsx
 import { RshonoError } from "rshono-react-native";
 // For example, inside renderError:
-if (error instanceof RshonoError && error.code === "BUILD_MISMATCH") {
-  // Show an update prompt in your app.
+if (error instanceof RshonoError && error.code === "HTTP_ERROR") {
+  // Handle the server response using error.status.
 }
 ```
 
@@ -148,7 +182,6 @@ if (error instanceof RshonoError && error.code === "BUILD_MISMATCH") {
 | `NETWORK_ERROR`       | Fetch failed; the original error is available as `cause`           |
 | `HTTP_ERROR`          | HTTP failure; the response code is available as `status`           |
 | `INVALID_RESPONSE`    | Invalid MIME type, body, or root payload                           |
-| `BUILD_MISMATCH`      | Native and server builds do not match                              |
 | `DECODE_ERROR`        | Flight decoding failed; the original error is available as `cause` |
 | `TIMEOUT`             | Fetching the root payload exceeded the timeout                     |
 
@@ -159,9 +192,8 @@ Branch on `code` and `status`, not on message strings. Cancellation preserves th
 - Tested versions: RSHono 1.0.0-rc.23, Rspack 2.2.7, react-server-dom-rspack 0.1.0, React/React DOM 19.2.3, Expo 57.0.26, and React Native 0.86.3. Peer dependency ranges are not expanded to untested combinations.
 - This adapter supports production builds and request-time GET rendering. Server Functions, RSHono web navigation, HMR, static HTML, simultaneous web/native serving, and offline use are not supported.
 - Named/default exports and explicit named re-exports are supported. Export stars, namespace exports, destructured exports, and enums are rejected at Client Component boundaries. Put native state and event handlers in Client Components and pass RSC-serializable props from the server.
-- A Rspack loader generates server references from native implementations. Flight uses module IDs from the same build. Metro processes the original native source; the server does not execute react-native itself.
-- In addition to the public Rspack hook, the adapter depends on RSHono's server-app alias, internal RouterProvider, and Flight format. It requires no RSHono source changes but still depends on upstream internals.
-- Every build receives a new buildId. Deploy the server and generated client together. Keep a separate endpoint or URL for older native app versions as needed. Automatic version routing is not provided. Manually reusing an ID to bypass mismatch detection is not supported.
+- A Rspack loader generates server references from native implementations. Flight references must resolve to components bundled in the requesting app. Metro processes the original native source; the server does not execute react-native itself.
+- In addition to the public Rspack hook, the adapter depends on RSHono's internal RouterProvider and Flight format. It requires no RSHono source changes but still depends on upstream internals.
 - Rendering has been verified in Expo Go on an iOS simulator. CI checks real HTTP integration and iOS/Android Metro production bundles. Android device execution, physical devices, and app store distribution have not been verified.
 
 ## Development

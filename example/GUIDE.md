@@ -35,7 +35,7 @@ Use Expo Go with SDK 57 support. The server runs on port 3100 and Metro on port 
 
 Change the name and press “Reload from server” to update the greeting, timestamp, and request ID. The counter uses local client state and resets to zero after refetching.
 
-After changing the library, server, or native components, run `pnpm example:build` again and restart both the server and Metro. Use `pnpm example:native --clear` to clear Metro's cache. The server and native client must share the same build ID.
+After changing the library, server, or native components, run `pnpm example:build` again and restart both the server and Metro. Use `pnpm example:native --clear` to clear Metro's cache. Server-only wording changes can be deployed without updating the installed app when component references remain compatible. The example sends `x-app-release: store-1`; use `review-2` to request the preview response. Missing or unknown IDs receive the current response. The server owns this policy.
 
 ## Verification
 
