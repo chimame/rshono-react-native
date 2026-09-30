@@ -1,0 +1,26 @@
+{
+  "name": "rshono-native-server-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rshono-native build",
+    "start": "rshono start --port 3100",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rshono/core": "1.0.0-rc.23",
+    "@rspack/core": "2.2.7",
+    "hono": "4.13.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-server-dom-rspack": "0.1.0",
+    "rshono-react-native": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "~19.2.10",
+    "typescript": "~6.0.3",
+    "vitest": "5.0.2"
+  }
+}

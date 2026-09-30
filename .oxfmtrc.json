@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    ".artifacts/",
+    "example/native/.rshono-native/",
+    "example/native/.expo/",
+    "example/server/.rshono/",
+    "pnpm-lock.yaml",
+    "*.tgz"
+  ]
+}

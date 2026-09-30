@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "RSHono Native Example",
+    "slug": "rshono-native-example",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rshono.nativeexample"
+    },
+    "android": {
+      "package": "com.rshono.nativeexample"
+    }
+  }
+}

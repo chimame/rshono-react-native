@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "react-hooks"],
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    ".artifacts/**",
+    "**/.rshono-native/**",
+    "**/.expo/**",
+    "**/.rshono/**"
+  ],
+  "env": {
+    "node": true
+  },
+  "overrides": [
+    {
+      "files": ["example/server/src/**/*.tsx"],
+      "rules": {
+        "react/purity": "off"
+      }
+    }
+  ]
+}

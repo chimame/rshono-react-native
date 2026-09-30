@@ -1,0 +1,116 @@
+{
+  "name": "rshono-react-native",
+  "version": "0.1.0-alpha.0",
+  "description": "An experimental adapter for rendering RSHono React Server Components in React Native",
+  "keywords": [
+    "expo",
+    "metro",
+    "react-native",
+    "react-server-components",
+    "rshono"
+  ],
+  "homepage": "https://github.com/chimame/rshono-react-native#readme",
+  "bugs": {
+    "url": "https://github.com/chimame/rshono-react-native/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chimame/rshono-react-native.git"
+  },
+  "bin": {
+    "rshono-native": "./dist/build/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./build": {
+      "types": "./dist/build/index.d.mts",
+      "import": "./dist/build/index.mjs"
+    },
+    "./package.json": "./package.json",
+    "./metro": {
+      "types": "./dist/metro/index.d.cts",
+      "default": "./dist/metro/index.cjs"
+    },
+    "./internal/manifest": {
+      "types": "./dist/internal/manifest.d.cts",
+      "default": "./dist/internal/manifest.cjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', {recursive:true,force:true})\" && tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && vitest run",
+    "example:build": "pnpm build && pnpm --filter rshono-native-server-example build",
+    "example:server": "pnpm --filter rshono-native-server-example start",
+    "example:native": "pnpm --filter rshono-native-example start",
+    "test:unit": "vitest run",
+    "verify": "node scripts/verify.mts",
+    "verify:package": "node scripts/verify-package.mts",
+    "format:check": "oxfmt --check .",
+    "typecheck:tools": "tsc -p tsconfig.tools.json",
+    "format": "oxfmt --write .",
+    "lint": "oxlint --deny-warnings .",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.0"
+  },
+  "devDependencies": {
+    "@rshono/core": "1.0.0-rc.23",
+    "@rspack/core": "2.2.7",
+    "@types/node": "^22.0.0",
+    "@types/react": "~19.2.10",
+    "hono": "4.13.7",
+    "metro-config": "^0.84.0",
+    "metro-resolver": "^0.84.0",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "react": "19.2.3",
+    "react-test-renderer": "19.2.3",
+    "typescript": "~6.0.3",
+    "vitest": "5.0.2"
+  },
+  "peerDependencies": {
+    "@rshono/core": "1.0.0-rc.23",
+    "@rspack/core": "2.2.7",
+    "metro-config": "^0.84.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-server-dom-rspack": "0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@rshono/core": {
+      "optional": true
+    },
+    "@rspack/core": {
+      "optional": true
+    },
+    "metro-config": {
+      "optional": true
+    },
+    "react-server-dom-rspack": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.34.6"
+}

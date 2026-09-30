@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm format:check
+      - run: corepack pnpm lint
+      - run: corepack pnpm verify
+      - run: corepack pnpm verify:package
+      - name: Native production bundles
+        if: matrix.node == 22
+        env:
+          CI: 1
+          EXPO_OFFLINE: 1
+        run: |
+          corepack pnpm --filter rshono-native-example exec expo export --platform ios --output-dir ../../.artifacts/ios --max-workers 2
+          corepack pnpm --filter rshono-native-example exec expo export --platform android --output-dir ../../.artifacts/android --max-workers 2
