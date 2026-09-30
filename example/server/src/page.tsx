@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { PageProps } from "@rshono/core";
 import { Panel, Label } from "../../native/src/components/native-host";
 
@@ -12,7 +11,7 @@ export default async function NativePage({ url }: PageProps) {
       <Label>Screen from RSHono</Label>
       <Label>Hello, {name}</Label>
       <Label>Server time: {new Date().toISOString()}</Label>
-      <Label>Request ID: {randomUUID()}</Label>
+      <Label>Request ID: {crypto.randomUUID()}</Label>
       <Counter />
     </Panel>
   );
