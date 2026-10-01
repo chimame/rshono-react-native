@@ -1,7 +1,7 @@
 import { TextDecoder, TextEncoder } from "node:util";
 import { ReadableStream } from "node:stream/web";
-import { get } from "node:http";
-import { fireEvent, renderAsync, screen } from "@testing-library/react-native";
+import { request as httpRequest } from "node:http";
+import { fireEvent, renderAsync, screen, waitFor } from "@testing-library/react-native";
 import { Text, View } from "react-native";
 import * as manifest from "../.rshono-native/native-client.cjs";
 import {
@@ -52,7 +52,7 @@ test("sends the RSC header and encoded name and decodes with the real decoder", 
   expect(payload.root).toBe("Connected");
   expect(fetcher).toHaveBeenCalledWith(
     "http://localhost:3100/native?name=%E5%A4%AA%E9%83%8E+%26+%E8%8A%B1%E5%AD%90",
-    { headers: { RSC: "1" }, signal },
+    { headers: { RSC: "1" }, signal, redirect: "manual" },
   );
 });
 
@@ -79,14 +79,47 @@ test("rejects a truncated Flight response", async () => {
 
 // Optional integration test against a running RSHono server, without HTTP or Flight mocks.
 const integration = process.env.RSHONO_POC_URL ? test : test.skip;
-const httpFetch: FlightFetch = (url, { headers, signal }) =>
+const httpFetch: FlightFetch = (url, { headers, signal, method, body }) =>
   new Promise((resolve, reject) => {
-    const request = get(url, { headers, signal }, (incoming) => {
+    let data: string | undefined;
+    if (typeof body === "string") data = body;
+    else if (body) {
+      const boundary = "rshono-test-boundary";
+      const parts = (
+        body as unknown as { getParts(): { fieldName: string; string?: string }[] }
+      ).getParts();
+      data =
+        parts
+          .map(
+            (part) =>
+              `--${boundary}\r\nContent-Disposition: form-data; name="${part.fieldName}"\r\n\r\n${part.string}\r\n`,
+          )
+          .join("") + `--${boundary}--\r\n`;
+      headers = { ...headers, "content-type": `multipart/form-data; boundary=${boundary}` };
+    }
+    const request = httpRequest(url, { headers, signal, method: method ?? "GET" }, (incoming) => {
+      let ended = false;
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
-          incoming.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-          incoming.on("end", () => controller.close());
-          incoming.on("error", (error) => controller.error(error));
+          incoming.on("data", (chunk: Buffer) => {
+            if (!ended) controller.enqueue(new Uint8Array(chunk));
+          });
+          incoming.on("end", () => {
+            if (!ended) {
+              ended = true;
+              controller.close();
+            }
+          });
+          incoming.on("error", (error) => {
+            if (!ended) {
+              ended = true;
+              controller.error(error);
+            }
+          });
+        },
+        cancel() {
+          ended = true;
+          incoming.destroy();
         },
       });
       resolve({
@@ -103,6 +136,7 @@ const httpFetch: FlightFetch = (url, { headers, signal }) =>
     });
     request.setTimeout(5000, () => request.destroy(new Error("Connection timed out")));
     request.on("error", reject);
+    request.end(data);
   });
 
 integration(
@@ -171,5 +205,116 @@ newComponentIntegration(
       </RshonoProvider>,
     );
     expect(await screen.findByText("New review component")).toBeTruthy();
+  },
+);
+
+integration(
+  "preserves native state on refresh, resets explicitly, and calls both Server Function forms",
+  async () => {
+    await renderAsync(
+      <RshonoProvider
+        origin={process.env.RSHONO_POC_URL!}
+        fetch={httpFetch}
+        headers={{ Authorization: "Bearer example" }}
+      >
+        <ServerScreen path="/native" />
+      </RshonoProvider>,
+    );
+    await screen.findByText("Server counter: 0");
+    fireEvent.press(screen.getByLabelText("Increment local counter"));
+    fireEvent.press(screen.getByLabelText("Refresh server screen"));
+    await screen.findByText("Refresh");
+    expect(screen.getByText("Local counter: 1")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Call server function prop"));
+    await screen.findByText("Action result: 1");
+    expect(await screen.findByText("Server counter: 1")).toBeTruthy();
+    expect(screen.getByText("Local counter: 1")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Call imported server function"));
+    await screen.findByText("Action result: 2");
+    expect(await screen.findByText("Server counter: 2")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Reset server screen"));
+    await screen.findByText("Local counter: 0");
+  },
+);
+
+integration.each(["/redirect", "/late-redirect", "/http-redirect"])(
+  "delivers %s to native navigation without following it",
+  async (path) => {
+    const onRedirect = jest.fn();
+    await renderAsync(
+      <RshonoProvider
+        origin={process.env.RSHONO_POC_URL!}
+        fetch={httpFetch}
+        onRedirect={onRedirect}
+      >
+        <ServerScreen path={path} />
+      </RshonoProvider>,
+    );
+    await waitFor(() => expect(onRedirect).toHaveBeenCalledTimes(1));
+    expect(onRedirect.mock.calls[0][0]).toMatch(/\/native/);
+  },
+);
+integration.each(["/missing", "/late-missing"])(
+  "renders native not-found UI for %s",
+  async (path) => {
+    await renderAsync(
+      <RshonoProvider
+        origin={process.env.RSHONO_POC_URL!}
+        fetch={httpFetch}
+        renderNotFound={<Text>Native not found</Text>}
+      >
+        <ServerScreen path={path} />
+      </RshonoProvider>,
+    );
+    expect(await screen.findByText("Native not found")).toBeTruthy();
+  },
+);
+integration(
+  "renders the server's not-found fallback when no native override is supplied",
+  async () => {
+    await renderAsync(
+      <RshonoProvider origin={process.env.RSHONO_POC_URL!} fetch={httpFetch}>
+        <ServerScreen path="/unknown-route" />
+      </RshonoProvider>,
+    );
+    expect(await screen.findByText("Server not found page")).toBeTruthy();
+  },
+);
+integration(
+  "streams nested Suspense, times out stalled chunks, and recovers by changing the screen",
+  async () => {
+    function App({ path }: { path: string }) {
+      return (
+        <RshonoProvider
+          origin={process.env.RSHONO_POC_URL!}
+          fetch={httpFetch}
+          renderError={(error) => (
+            <Text>{(error as { code?: string }).code ?? "Stream error"}</Text>
+          )}
+        >
+          <ServerScreen path={path} streamIdleTimeoutMs={150} />
+        </RshonoProvider>
+      );
+    }
+    const view = await renderAsync(<App path="/stream" />);
+    expect(await screen.findByText("Stream shell")).toBeTruthy();
+    expect(await screen.findByText("Stream completed")).toBeTruthy();
+    await view.rerenderAsync(<App path="/stalled" />);
+    expect(await screen.findByText("TIMEOUT")).toBeTruthy();
+    await view.rerenderAsync(<App path="/stream" />);
+    expect(await screen.findByText("Stream completed")).toBeTruthy();
+  },
+);
+
+integration(
+  "renders server-imported AsyncBoundary and a native useNavigation consumer",
+  async () => {
+    await renderAsync(
+      <RshonoProvider origin={process.env.RSHONO_POC_URL!} fetch={httpFetch}>
+        <ServerScreen path="/native-boundaries" />
+      </RshonoProvider>,
+    );
+    expect(await screen.findByText("Native navigation: /native-boundaries")).toBeTruthy();
+    expect(await screen.findByText("Stream completed")).toBeTruthy();
   },
 );

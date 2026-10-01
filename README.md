@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/chimame/rshono-react-native/actions/workflows/ci.yml/badge.svg)](https://github.com/chimame/rshono-react-native/actions/workflows/ci.yml)
 
-An unofficial, experimental adapter that renders RSHono React Server Components as React Native UI. It requires no source changes to RSHono or the Flight decoder.
+An unofficial, experimental adapter that renders RSHono React Server Components as React Native UI. It requires no changes to installed RSHono sources. The generated decoder adapts the pinned Flight callback implementation to bind Server Functions per screen.
 
-**0.1.0-alpha.0 / Not yet published to npm.** This alpha targets a fixed set of compatible versions. Server Functions and HMR are not supported. Applications control version-specific RSC responses on the server. You can use it within ordinary Expo Router screens; integration with Expo Router's own RSC implementation is outside the scope of this project.
+**0.1.0-alpha.0 / Not yet published to npm.** This alpha targets a fixed set of compatible versions. Server Functions, state-preserving refresh, and a native watch/rebuild development workflow are supported. Applications control version-specific RSC responses on the server. You can use it within ordinary Expo Router screens; integration with Expo Router's own RSC implementation is outside the scope of this project.
 
 ## Run the example
 
@@ -121,21 +121,89 @@ If you already have a Metro configuration, wrap the final configuration with `wi
 | `/build`              | `defineNativeConfig` / `NativeBuildOptions` | Configure the RSHono build                                          |
 | `/metro`              | `withRshono`                                | Configure Metro                                                     |
 
+Additional native exports: `useServerScreen`, `useServerFunction`, `createExpoRouterAdapter`, `createReactNavigationAdapter`, and `createNativeLifecycle`. Low-level clients expose `callServer`, `prefetch`, `invalidate`, and `serverFunctionId`; those capabilities are optional on custom clients.
+
 `/internal/*` connects the CLI, Metro, and runtime. Do not use these entry points directly; they are not covered by compatibility guarantees. The unpublished proof of concept's `/client`, `/server`, and `output/components` configuration have been removed.
 
-`RshonoProvider` accepts `origin` and optional `fetch`, `headers`, `timeoutMs`, `fallback`, and `renderError`. Injecting a custom `client` bypasses the automatic manifest connection and the provider's `fetch`. The default fetch implementation is global fetch and must support ReadableStream.
+`RshonoProvider` accepts `origin`, `fetch`, `headers`, `getHeaders`, `onUnauthorized`, `timeoutMs`, `streamIdleTimeoutMs`, `preserveState`, `fallback`, `renderError`, `renderNotFound`, `onRedirect`, `navigation`, `lifecycle`, `refreshOn`, cache options, `onRequest`, `onError`, and `onRenderError`. Injecting a custom `client` bypasses the automatic manifest connection and the provider's `fetch`. The default fetch implementation is global fetch and must support ReadableStream.
 
 `ServerScreen` accepts `path`, `searchParams`, and `reloadKey`. Query values can be strings, numbers, or booleans; null and undefined values are omitted. Screens can override `headers`, `timeoutMs`, `fallback`, and `renderError`. Headers are merged with the provider's headers. Update the provider's headers when authentication tokens change.
 
-`origin` must be an HTTP(S) origin without a path. `path` must start with `/` and stay on the same server. Changes to the URL, query, headers, or `reloadKey` trigger another request. The previous screen is unmounted while loading and mounted again on success, resetting local component state.
+`origin` must be an HTTP(S) origin without a path. `path` must start with `/` and stay on the same server. Changes to the URL, query, headers, or `reloadKey` trigger another request. Refreshing the same screen preserves Client Component state and displays the previous tree while loading. Changing the URL, authentication headers, or client resets the tree. Set `preserveState={false}` for the previous behavior, or call `reset()` explicitly.
 
-`renderError(error, retry)` receives fetch and rendering errors. Without it, errors propagate to a parent Error Boundary. The default fallback is null. The default timeout is 15 seconds and covers fetching the root payload; it does not include subsequent Suspense waits.
+`renderError(error, retry)` receives fetch and rendering errors. Without it, errors propagate to a parent Error Boundary. The default fallback is null. The default root timeout and stream idle timeout are both 15 seconds. `timeoutMs` covers fetching/decoding the root; `streamIdleTimeoutMs` also watches delayed Suspense chunks until EOF. Set either to 0 to disable it.
+
+## Refresh and Server Functions
+
+Inside a native Client Component rendered by `ServerScreen`:
+
+```tsx
+"use client";
+import { Pressable, Text } from "react-native";
+import { useServerScreen, useServerFunction } from "rshono-react-native";
+import { saveName } from "../../server/src/actions";
+
+export function SaveButton() {
+  const { refresh, reset, pending } = useServerScreen();
+  const save = useServerFunction(saveName);
+  return (
+    <Pressable
+      disabled={pending}
+      onPress={async () => {
+        await save("Alex"); // Action response also updates this screen's RSC tree.
+      }}
+    >
+      <Text>Save</Text>
+    </Pressable>
+  );
+}
+```
+
+`refresh()` and `reloadKey` preserve matching Client Components. `reset()` unmounts the current tree. `invalidate()` clears the provider client's cache and refreshes the current screen. `pending` covers root loading, refresh, and Server Functions. Requests are aborted on navigation/unmount, and queued mutations from the same screen run in order. Aborting a POST does not undo a mutation already executed by the server.
+
+Module-level `"use server"` exports are discovered in `clientRoots` (including server/native defaults) and `watchRoots`, compiled into references, and replaced by generated proxies in Metro. Bind imported references with `useServerFunction`; calling an imported reference directly has no screen context. Functions passed as props by the server are already bound and can be called directly. Rebuild after adding an action. Bound references passed as props are supported; the hook accepts unbound module exports. Inline closures retain upstream RSHono/Rspack limitations.
+
+A Server Function runs on the server, so it must validate authentication, authorization, and input there. The example demonstrates these checks with a demonstration credential. Use ordinary React Native event handlers, `useTransition`, or `useActionState` with an explicitly dispatched action; HTML form actions and DOM form hooks do not apply to native views.
+
+## Authentication, caching, and lifecycle
+
+`getHeaders()` can asynchronously read current credentials for every request. `onUnauthorized()` is shared by concurrent 401 GET responses; after it resolves, the library reads fresh headers and retries each GET once. POSTs are never automatically retried. Explicit screen headers override generated headers, case-insensitively; avoid supplying a stale static Authorization header when using `getHeaders`.
+
+Caching is disabled by default. Set `cacheTimeMs` to enable byte-level request sharing and `prefetch(path, searchParams)` from `useServerScreen`. `maxCacheEntries` defaults to 32 and `maxCacheBytes` to 1 MiB per response. The key includes the complete URL, headers, and authentication generation, so users and app releases do not share entries. Every screen decodes independently and has its own action callbacks. Oversized, incomplete, failed, 404, `Cache-Control: no-store`, and action responses are not retained. Successful actions invalidate the cache. Use `invalidate()` at logout as well.
+
+`staleIfErrorMs` optionally permits a recently expired cached GET after a network failure. It does not hide HTTP/authentication failures or restore native code missing from the installed app. The cache lives only in the provider/client instance and is lost when that instance is destroyed.
+
+`createNativeLifecycle()` returns `{ subscribe, emit }`. Connect `AppState` becoming active to `emit("active")`, NetInfo reconnecting to `emit("reconnect")`, and a navigation focus listener to `emit("focus")`. Pass the instance as `lifecycle` and choose `refreshOn={["active", "reconnect", "focus"]}`. The screen removes its subscription on unmount. No native lifecycle packages are installed by this library.
+
+## Navigation, 404s, and diagnostics
+
+`onRedirect(href)` receives an absolute HTTP(S) URL; otherwise `navigation.replace(href)` handles it. The handler must switch screens or replace/unmount the current `ServerScreen`. After a handled redirect the screen renders null; a no-op handler leaves it blank. HTTP redirects are requested with `redirect: "manual"`; choose a streaming fetch that respects that option. The library never intentionally fetches an external redirect with application headers. If a fetch implementation follows redirects despite the option, the adapter rejects a foreign final URL, but cannot undo a request already sent by that implementation.
+
+Pass `renderNotFound` for a native 404 view. A 404 Flight response containing the server's not-found tree can render that tree without an override. A `notFound()` thrown after the shell is sent travels as a control digest; handle it with `renderNotFound` or `renderError`. Late redirects from Suspense are handled as navigation too.
+
+`createExpoRouterAdapter(router)` bridges relative native routes; `createReactNavigationAdapter(navigation, navigate)` delegates URL-to-route mapping to your application. For absolute redirect URLs, normalize the server origin to a native path and handle external URLs through your application's Linking policy. `@rshono/core/client` is mapped to native-compatible `useNavigation`, `AsyncBoundary`, and `CatchBoundary` by the build and Metro adapters.
+
+`onRequest(event)` receives request/response/error events with a local request ID, sanitized URL (no query or credentials), method, status, timing, and optional server `x-request-id`. Headers and request bodies are omitted. `onError(error, event)` reports transport failures; `onRenderError(error, componentStack)` reports component/stream rendering failures. Application error values remain application data: redact them before sending them to an external tracker.
+
+## Development and shared packages
+
+```sh
+# In the server project
+rshono-native doctor
+rshono-native doctor --origin http://127.0.0.1:3100/native
+rshono-native dev --port 3100 --host 127.0.0.1
+# Start Metro in the native project separately.
+```
+
+`doctor` checks installed versions, configuration, generated artifacts, Metro setup, and streaming fetch availability. The optional URL probes an RSC endpoint. `--host` overrides the pinned RSHono `start` command's `HOST` environment variable. The development smoke test verifies actual `127.0.0.1` and `0.0.0.0` socket binds against conflicting inherited `HOST` values, including wildcard binding after a rebuild. `dev` watches server/native/shared sources, stops the previous server, rebuilds, publishes the generated decoder, and restarts serving after a successful build. Failed builds leave the watcher running. Metro consumes native source with its normal Fast Refresh behavior; generated-client changes may require an application reload and reset local state. Server rebuilds currently use production compilation and therefore redact server errors. Restart `dev` after changing watch roots or dependency layouts.
+
+`defineNativeConfig` additionally accepts `clientPackages`, `watchRoots`, and `aliases`. Mark native third-party package entry points as `"use client"`, or wrap/re-export them from your native app; add `clientPackages` for packages imported directly by the server. Explicit native variants (`.ios`, `.android`, `.native`) resolve through a common stem in Metro. Keep a common server-visible module with consistent export names across platforms. Configure matching TS/Metro aliases alongside build aliases. `server-only` and direct server imports of `react-native` have dedicated diagnostics.
 
 ## Server-controlled rendering and version skew
 
 The server decides what to render for each request. The library does not generate or compare build IDs, enforce app versions, or require an app update for server-only wording and data changes. A screen receives updated content on its next request; updates are not pushed to an already displayed screen.
 
-Use the existing optional `headers` prop to identify an app release. Header names and values belong to your application; the library only reserves `RSC`.
+Use the existing optional `headers` prop to identify an app release. Header names and values belong to your application; the library reserves `RSC` and `x-rsc-action`.
 
 ```tsx
 <RshonoProvider
@@ -183,18 +251,21 @@ if (error instanceof RshonoError && error.code === "HTTP_ERROR") {
 | `HTTP_ERROR`          | HTTP failure; the response code is available as `status`           |
 | `INVALID_RESPONSE`    | Invalid MIME type, body, or root payload                           |
 | `DECODE_ERROR`        | Flight decoding failed; the original error is available as `cause` |
-| `TIMEOUT`             | Fetching the root payload exceeded the timeout                     |
+| `TIMEOUT`             | Root timeout or stream idle timeout expired                        |
+| `REDIRECT`            | Native navigation is required; inspect `location`                  |
+| `NOT_FOUND`           | Missing page or streamed not-found control signal                  |
+| `ACTION_ERROR`        | Missing/invalid Server Function result or reference                |
 
 Branch on `code` and `status`, not on message strings. Cancellation preserves the AbortSignal's reason, typically an AbortError. Errors from user components or custom clients are not necessarily RshonoError instances. Build tool errors are reported as CLI diagnostics.
 
 ## Compatibility and limitations
 
 - Tested versions: RSHono 1.0.0-rc.23, Rspack 2.2.7, react-server-dom-rspack 0.1.0, React/React DOM 19.2.3, Expo 57.0.26, and React Native 0.86.3. Peer dependency ranges are not expanded to untested combinations.
-- This adapter supports production builds and request-time GET rendering. Server Functions, RSHono web navigation, HMR, static HTML, simultaneous web/native serving, and offline use are not supported.
-- Named/default exports and explicit named re-exports are supported. Export stars, namespace exports, destructured exports, and enums are rejected at Client Component boundaries. Put native state and event handlers in Client Components and pass RSC-serializable props from the server.
+- This adapter supports production builds and request-time GET rendering. Static HTML and simultaneous web/native serving are not supported. `rshono-native dev` rebuilds and restarts the native server; it does not provide RSHono web HMR. Offline fallback uses a bounded, opt-in in-memory Flight cache; persistent offline storage is not included.
+- Named/default exports, explicit re-exports, static export stars, and destructured variable exports are supported. Namespace exports and enums at Client Component boundaries are rejected; keep value objects and enums inside Client Components. Put native state and event handlers in Client Components and pass RSC-serializable props from the server.
 - A Rspack loader generates server references from native implementations. Flight references must resolve to components bundled in the requesting app. Metro processes the original native source; the server does not execute react-native itself.
 - In addition to the public Rspack hook, the adapter depends on RSHono's internal RouterProvider and Flight format. It requires no RSHono source changes but still depends on upstream internals.
-- Rendering has been verified in Expo Go on an iOS simulator. CI checks real HTTP integration and iOS/Android Metro production bundles. Android device execution, physical devices, and app store distribution have not been verified.
+- CI checks real HTTP integration and iOS/Android Metro production bundles. Device, Hermes, development-build, and release-build coverage follow [the device verification checklist](example/DEVICE_TESTING.md); physical-device and app-store verification remain release gates.
 
 ## Development
 
@@ -203,6 +274,7 @@ Source code is organized into `src/runtime` (native), `src/build` (Node/Rspack),
 ```sh
 corepack pnpm verify
 corepack pnpm verify:package
+corepack pnpm verify:dev
 corepack pnpm format:check
 corepack pnpm lint
 ```

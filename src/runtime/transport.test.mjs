@@ -53,6 +53,7 @@ test("preserves the path, query, and authentication headers while forcing RSC", 
         RSC: "1",
       },
       signal,
+      redirect: "manual",
     },
   ]);
 });

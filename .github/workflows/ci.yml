@@ -27,6 +27,7 @@ jobs:
       - run: corepack pnpm format:check
       - run: corepack pnpm lint
       - run: corepack pnpm verify
+      - run: corepack pnpm verify:dev
       - run: corepack pnpm verify:package
       - name: Native production bundles
         if: matrix.node == 22

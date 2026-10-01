@@ -67,7 +67,10 @@
     "typecheck:tools": "tsc -p tsconfig.tools.json",
     "format": "oxfmt --write .",
     "lint": "oxlint --deny-warnings .",
-    "prepare": "pnpm build"
+    "prepare": "pnpm build",
+    "verify:registry": "node scripts/verify-package.mts",
+    "example:dev": "pnpm --filter rshono-native-server-example exec rshono-native dev",
+    "verify:dev": "pnpm build && node scripts/verify-dev.mts"
   },
   "dependencies": {
     "@babel/parser": "^7.29.0"

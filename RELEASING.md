@@ -5,9 +5,9 @@ Publishing source to GitHub and publishing a package to npm are separate steps. 
 ## Release checklist
 
 1. Update the package version, supported versions, changelog, and README limitations.
-2. Run `corepack pnpm install --frozen-lockfile`, `corepack pnpm verify`, `corepack pnpm verify:package`, `corepack pnpm format:check`, and `corepack pnpm lint`.
+2. Run `corepack pnpm install --frozen-lockfile`, `corepack pnpm verify`, `corepack pnpm verify:package`, `corepack pnpm verify:dev`, `corepack pnpm format:check`, and `corepack pnpm lint`.
 3. Confirm that GitHub CI passes on Node 22/24, including iOS/Android production bundles.
-4. Verify rendering, interaction, and refetching in a supported Expo Go version or development build. Clearly identify untested platforms.
+4. Verify rendering, interaction, and refetching in a supported Expo Go version or development build. Use [the device verification checklist](example/DEVICE_TESTING.md), including Server Functions, refresh/reset, offline recovery, lifecycle refresh, and native platform selection. Clearly identify untested platforms.
 5. Run `corepack pnpm pack --out package.tgz`. The `verify:package` script checks that only dist, README, LICENSE, CHANGELOG, and package.json are included.
 
 ## GitHub
@@ -24,7 +24,7 @@ Verify package name availability and ownership, authenticate with npm, and publi
 corepack pnpm publish ./package.tgz --access public --tag alpha
 ```
 
-After publishing, install the actual registry version into a new project and verify APIs, builds, and the native connection. Update the README's “Not yet published to npm” notice only after the npm publication is complete.
+After publishing, run `corepack pnpm verify:registry <exact-version>` to install the actual registry version into a new project and verify APIs, types, build entry points, and RSC responses. Verify the native connection on devices as well. Update the README's “Not yet published to npm” notice only after the npm publication is complete.
 
 ## Server and native deployments
 

@@ -40,3 +40,32 @@ test("ignores directives in comments and rejects export stars explicitly", () =>
     /Panel, Text/,
   );
 });
+
+test("expands resolved export stars, destructured bindings, and diagnoses native/server-only imports", () => {
+  const client = transformClientBoundary(
+    `'use client'; export * from './shared'; export const {Nested: [A], ...Rest} = value;`,
+    file,
+    "client",
+    { "./shared": ["default", "Named"] },
+  );
+  assert.match(client, /Named, A, Rest/);
+  assert.doesNotMatch(client, /export \*/);
+  assert.throws(
+    () =>
+      transformClientBoundary(
+        `import {Text} from 'react-native'; export default function Page(){}`,
+        file,
+        "server",
+      ),
+    /use client boundary/,
+  );
+  assert.throws(
+    () =>
+      transformClientBoundary(
+        `'use client';import 'server-only';export default function Component(){}`,
+        file,
+        "server",
+      ),
+    /server-only code/,
+  );
+});

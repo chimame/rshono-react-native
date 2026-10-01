@@ -8,5 +8,6 @@ server.use("/native", async (c, next) => {
   await next();
 });
 server.use(bodyLimit({ maxSize: 64 * 1024 }));
+server.get("/http-redirect", (c) => c.redirect("/native"));
 server.get("/health", (c) => c.json({ name: "rshono-native-example" }));
 export default server;

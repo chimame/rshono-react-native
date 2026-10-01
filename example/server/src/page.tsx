@@ -1,6 +1,9 @@
 import type { PageProps } from "@rshono/core";
 import { Panel, Label } from "../../native/src/components/native-host";
 
+import ServerControls from "../../native/src/components/ServerControls";
+import { incrementServerCounter, readServerCounter } from "./actions";
+import PlatformLabel from "../../native/src/components/PlatformLabel";
 import Counter from "../../native/src/components/Counter";
 
 export default async function NativePage({ url, ctx }: PageProps) {
@@ -14,7 +17,10 @@ export default async function NativePage({ url, ctx }: PageProps) {
       <Label>Hello, {name}</Label>
       <Label>Server time: {new Date().toISOString()}</Label>
       <Label>Request ID: {crypto.randomUUID()}</Label>
+      <PlatformLabel />
       <Counter />
+      <Label>Server counter: {await readServerCounter()}</Label>
+      <ServerControls increment={incrementServerCounter} />
     </Panel>
   );
 }

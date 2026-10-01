@@ -66,3 +66,64 @@ test("uses provider authentication and error handling and refetches on params, r
   assert.equal(requests.at(-1).headers.Authorization, "second");
   await act(async () => view.unmount());
 });
+
+test("delivers a redirect once even when inline handlers and navigation objects change", async () => {
+  const calls = [];
+  let view;
+  const client = { load: async () => ({ root: null, redirect: "/login" }) };
+  function App({ revision: _revision = 0 }) {
+    return React.createElement(
+      RshonoProvider,
+      {
+        origin: "https://example.test",
+        client,
+        onRedirect: (href) => calls.push(href),
+        navigation: { replace: (href) => calls.push(href), push() {}, back() {} },
+      },
+      React.createElement(ServerScreen, { path: "/redirect" }),
+    );
+  }
+  await act(async () => {
+    view = create(React.createElement(App));
+  });
+  await act(async () => view.update(React.createElement(App, { revision: 1 })));
+  assert.deepEqual(calls, ["https://example.test/login"]);
+  await act(async () => view.unmount());
+});
+test("invalid redirects surface errors and undefined overrides inherit provider options", async () => {
+  for (const location of ["http://[", "javascript:alert(1)"]) {
+    let view;
+    const client = { load: async () => ({ root: null, redirect: location }) };
+    await act(async () => {
+      view = create(
+        React.createElement(
+          RshonoProvider,
+          {
+            origin: "https://example.test",
+            client,
+            onRedirect: () => {
+              throw new Error("must not navigate");
+            },
+            renderError: (error) => React.createElement("error", null, error.code),
+          },
+          React.createElement(ServerScreen, { path: "/a", renderError: undefined }),
+        ),
+      );
+    });
+    assert.equal(view.toJSON().children[0], "INVALID_RESPONSE");
+    await act(async () => view.unmount());
+  }
+  const client = { load: () => new Promise(() => {}) };
+  let view;
+  await act(async () => {
+    view = create(
+      React.createElement(
+        RshonoProvider,
+        { origin: "https://example.test", client, fallback: React.createElement("loading") },
+        React.createElement(ServerScreen, { path: "/a", fallback: undefined }),
+      ),
+    );
+  });
+  assert.equal(view.toJSON().type, "loading");
+  await act(async () => view.unmount());
+});

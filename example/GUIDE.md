@@ -1,6 +1,6 @@
 # Standalone example
 
-The Expo app receives GET responses from RSHono and renders them as React Native View/Text components with a local counter. The example runs independently, without authentication or application services.
+The Expo app receives GET responses from RSHono and renders them as React Native View/Text components with a local counter. The example runs independently; Server Functions use a demonstration Authorization header and validate their arguments.
 
 ## Layout
 
@@ -33,9 +33,9 @@ corepack pnpm --filter rshono-native-example android
 
 Use Expo Go with SDK 57 support. The server runs on port 3100 and Metro on port 8086. Use `http://127.0.0.1:3100` in the iOS simulator or `http://10.0.2.2:3100` in the Android emulator. On a physical device, enter the development machine's LAN address in the connection field. You can also set the initial URL with `EXPO_PUBLIC_RSHONO_URL`.
 
-Change the name and press “Reload from server” to update the greeting, timestamp, and request ID. The counter uses local client state and resets to zero after refetching.
+Change the name and press “Reload from server” to update the greeting, timestamp, and request ID. The local counter survives refreshing the same screen. Changing the name/URL or pressing Reset resets it. Both Server Function buttons update the server counter and the screen.
 
-After changing the library, server, or native components, run `pnpm example:build` again and restart both the server and Metro. Use `pnpm example:native --clear` to clear Metro's cache. Server-only wording changes can be deployed without updating the installed app when component references remain compatible. The example sends `x-app-release: store-1`; use `review-2` to request the preview response. Missing or unknown IDs receive the current response. The server owns this policy.
+Use `pnpm --filter rshono-native-server-example exec rshono-native dev` to rebuild/restart after source changes. Rebuild the library separately when changing its source. Use `pnpm example:native --clear` to clear Metro's cache. Server-only wording changes can be deployed without updating the installed app when component references remain compatible. The example sends `x-app-release: store-1`; use `review-2` to request the preview response. Missing or unknown IDs receive the current response. The server owns this policy.
 
 ## Verification
 
@@ -52,7 +52,7 @@ corepack pnpm --filter rshono-native-server-example test
 RSHONO_POC_URL=http://127.0.0.1:3100 corepack pnpm --filter rshono-native-example test
 ```
 
-The native integration test uses real HTTP and the generated Flight decoder to verify rendering, counter interaction, refetching, and state reset. Without `RSHONO_POC_URL`, only the real HTTP test is skipped. Since Jest does not run Metro, the test connects the generated manifest explicitly.
+The native integration test uses real HTTP and the generated Flight decoder to verify rendering, counter interaction, state-preserving refresh, explicit reset, both Server Function forms, redirects, 404s, and streamed Suspense timeout/recovery. Without `RSHONO_POC_URL`, only the real HTTP test is skipped. Since Jest does not run Metro, the test connects the generated manifest explicitly.
 
 ## Package tarball
 

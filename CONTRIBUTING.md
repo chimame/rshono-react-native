@@ -8,13 +8,14 @@ This directory is the root of a standalone repository. It does not depend on an 
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 corepack pnpm verify:package
+corepack pnpm verify:dev
 corepack pnpm format:check
 corepack pnpm lint
 ```
 
 `verify` builds the library and examples, checks types, and runs unit, server, and real HTTP native integration tests. It allocates a test port and shuts down the server it starts. `verify:package` installs the tarball into a consumer project without the library source and validates exports, generated types, and the CLI's relative file references.
 
-CI runs these commands on Linux with Node 22 and 24. The Node 22 job also creates iOS and Android production bundles. Manual device testing is separate from CI.
+CI runs these commands on Linux with Node 22 and 24. The Node 22 job also creates iOS and Android production bundles. `verify:dev` uses an isolated temporary consumer to test watch rebuilds and clean up its server. Manual device testing follows [example/DEVICE_TESTING.md](example/DEVICE_TESTING.md).
 
 ## Source layout
 

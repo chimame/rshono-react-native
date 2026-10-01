@@ -10,6 +10,15 @@ import {
 } from "react-native";
 import { fetch } from "expo/fetch";
 import { RshonoProvider, ServerScreen } from "rshono-react-native";
+function reportError(error: unknown) {
+  if (__DEV__)
+    console.warn(
+      "Native RSC transport error",
+      error,
+      (error as Error)?.cause,
+      ((error as Error)?.cause as Error)?.stack,
+    );
+}
 export default function RshonoScreen() {
   const [serverUrl, setServerUrl] = useState(
     process.env.EXPO_PUBLIC_RSHONO_URL ||
@@ -80,8 +89,9 @@ export default function RshonoScreen() {
       </Pressable>
       <RshonoProvider
         origin={request.origin}
-        headers={{ "x-app-release": "store-1" }}
+        headers={{ "x-app-release": "store-1", Authorization: "Bearer example" }}
         fetch={fetch}
+        onError={reportError}
         fallback={<ActivityIndicator />}
         renderError={(error, retry) => (
           <View>

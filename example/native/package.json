@@ -29,6 +29,10 @@
     "typescript": "~6.0.3"
   },
   "jest": {
+    "moduleNameMapper": {
+      "^\\.\\./\\.\\./\\.\\./server/src/actions$": "<rootDir>/server-actions.cjs",
+      "^@rshono/core/client$": "<rootDir>/navigation.cjs"
+    },
     "preset": "jest-expo",
     "testMatch": [
       "**/*.test.tsx"
